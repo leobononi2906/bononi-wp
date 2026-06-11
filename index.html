@@ -324,24 +324,29 @@ async function gerarQR(nome) {
   const btn = document.getElementById('btn-qr')
   if (btn) { btn.textContent = 'Gerando...'; btn.disabled = true }
   try {
-    // Evolution API v2: /instance/connect retorna count, QR vem de /instance/qrcode
-    // Tentar /instance/qrcode/{nome} que retorna o base64
     let qr = null
     let jaConectado = false
 
-    // Primeiro verificar status
-    const statusData = await evoGet(`/instance/fetchInstances`)
-    const arr = Array.isArray(statusData) ? statusData : []
-    const instInfo = arr.find(i => (i.instance?.instanceName || i.instanceName) === nome)
-    const instStatus = instInfo?.instance?.status || instInfo?.status || 'close'
-    
-    if (instStatus === 'open') {
+    // Passo 1: restart para inicializar a instância
+    await evoPost(`/instance/restart/${nome}`)
+    // Aguardar 2s para a instância inicializar
+    await new Promise(r => setTimeout(r, 2000))
+
+    // Passo 2: connect para obter QR
+    const connData = await evoGet(`/instance/connect/${nome}`)
+    console.log('connect response:', JSON.stringify(connData).slice(0, 300))
+
+    // Verificar se já conectado
+    if (connData?.instance?.status === 'open' || connData?.status === 'open') {
       jaConectado = true
     } else {
-      // Buscar QR Code
-      const qrData = await evoGet(`/instance/qrcode/${nome}?image=true`)
-      console.log('qrcode response:', JSON.stringify(qrData).slice(0, 200))
-      qr = qrData?.base64 || qrData?.qrcode?.base64 || qrData?.image || qrData?.code
+      // Na v2 o QR vem no campo base64 ou pairwise_code após restart+connect
+      qr = connData?.base64 || connData?.qrcode?.base64 || connData?.qr
+      // Se ainda não tem QR, tentar endpoint alternativo
+      if (!qr) {
+        const qrData = await evoGet(`/instance/connect/${nome}`)
+        qr = qrData?.base64 || qrData?.qrcode?.base64
+      }
     }
 
     if (jaConectado) {
