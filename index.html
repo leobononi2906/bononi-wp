@@ -315,21 +315,32 @@ async function gerarQR(nome) {
   const btn = document.getElementById('btn-qr')
   if (btn) { btn.textContent = 'Gerando...'; btn.disabled = true }
   try {
-    const data = await evoGet(`/instance/connect/${nome}`)
-    console.log('connect response:', JSON.stringify(data))
+    // Evolution API v2: /instance/connect retorna count, QR vem de /instance/qrcode
+    // Tentar /instance/qrcode/{nome} que retorna o base64
+    let qr = null
+    let jaConectado = false
 
-    // Evolution API v2 pode retornar em vários formatos
-    const qr = data?.base64 || data?.qrcode?.base64 || data?.qr?.base64 || data?.code
+    // Primeiro verificar status
+    const statusData = await evoGet(`/instance/fetchInstances`)
+    const arr = Array.isArray(statusData) ? statusData : []
+    const instInfo = arr.find(i => (i.instance?.instanceName || i.instanceName) === nome)
+    const instStatus = instInfo?.instance?.status || instInfo?.status || 'close'
+    
+    if (instStatus === 'open') {
+      jaConectado = true
+    } else {
+      // Buscar QR Code
+      const qrData = await evoGet(`/instance/qrcode/${nome}?image=true`)
+      console.log('qrcode response:', JSON.stringify(qrData).slice(0, 200))
+      qr = qrData?.base64 || qrData?.qrcode?.base64 || qrData?.image || qrData?.code
+    }
 
-    // Se já está conectado
-    if (data?.instance?.status === 'open' || data?.status === 'open' ||
-        data?.state === 'open' || data?.connectionStatus === 'open') {
+    if (jaConectado) {
       document.getElementById('chat-panel').innerHTML = `<div class="qr-panel"><div class="qr-box">
         <h3>✅ Já conectado</h3>
         <p>Esta instância já está conectada ao WhatsApp.</p>
         <button class="btn-connect" onclick="selecionarInstancia('${nome}')">Ver conversas</button>
       </div></div>`
-      // Atualizar status na lista
       const inst = instancias.find(i => i.instanceName === nome)
       if (inst) inst.status = 'open'
       renderInstancias()
@@ -341,11 +352,12 @@ async function gerarQR(nome) {
           <h3>📱 Escaneie o QR Code</h3>
           <p>WhatsApp → Configurações → Aparelhos conectados → Conectar aparelho</p>
           <div class="qr-img"><img src="${qr.startsWith('data:') ? qr : 'data:image/png;base64,'+qr}" style="width:200px;height:200px;border-radius:6px;object-fit:contain"></div>
+          <p style="font-size:11px;color:var(--text-muted);margin-top:8px">QR expira em ~60 segundos</p>
           <button class="btn-connect" onclick="gerarQR('${nome}')">↻ Novo QR Code</button>
          </div></div>`
       : `<div class="qr-panel"><div class="qr-box">
-          <h3>⚠️ Resposta inesperada</h3>
-          <p style="font-size:11px;word-break:break-all;color:var(--text-sec)">${JSON.stringify(data).slice(0,200)}</p>
+          <h3>⚠️ Não foi possível gerar o QR</h3>
+          <p style="font-size:11px;color:var(--text-sec)">Verifique se a instância está ativa no servidor.</p>
           <button class="btn-connect" onclick="gerarQR('${nome}')">Tentar novamente</button>
          </div></div>`
   } catch(e) {
