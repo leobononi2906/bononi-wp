@@ -236,10 +236,35 @@ async function evoGet(path) {
 
 // ── INSTÂNCIAS ────────────────────────────────────────────────────────
 async function carregarInstancias() {
+  // Lista fixa de instâncias conhecidas
+  const INSTANCIAS_CONHECIDAS = [
+    { nome: 'vendedor1', label: 'Ana Julia' },
+    { nome: 'vendedor2', label: 'Guilherme' },
+    { nome: 'vendedor3', label: 'Iguimar' },
+    { nome: 'vendedor4', label: 'João' },
+    { nome: 'stonni',    label: 'Stonni Geral' },
+    { nome: 'assistencia', label: 'Assistência' },
+  ]
+
+  // Verificar status de cada instância via proxy
+  const statusMap = {}
   try {
     const data = await evoGet('/instance/fetchInstances')
-    instancias = Array.isArray(data) ? data : []
-  } catch(e) { instancias = [] }
+    const arr = Array.isArray(data) ? data : (data?.instances ? Object.values(data.instances) : [])
+    arr.forEach(inst => {
+      const nome = inst?.instance?.instanceName || inst?.instanceName || inst?.name || ''
+      const status = inst?.instance?.status || inst?.status || inst?.connectionStatus || 'close'
+      if (nome) statusMap[nome] = status
+    })
+  } catch(e) { console.warn('fetchInstances falhou:', e) }
+
+  // Montar lista com status
+  instancias = INSTANCIAS_CONHECIDAS.map(i => ({
+    instanceName: i.nome,
+    label: i.label,
+    status: statusMap[i.nome] || 'close'
+  }))
+
   renderInstancias()
 }
 
@@ -250,10 +275,10 @@ function renderInstancias() {
     return
   }
   el.innerHTML = instancias.map(inst => {
-    const nome   = inst.instance?.instanceName || inst.instanceName || ''
-    const status = inst.instance?.status || inst.status || 'close'
+    const nome   = inst.instanceName || ''
+    const status = inst.status || 'close'
     const conn   = status === 'open'
-    const label  = NOMES[nome] || nome
+    const label  = inst.label || NOMES[nome] || nome
     const isSel  = instSel === nome
     return `<div class="inst-item${isSel?' active':''}" onclick="selecionarInstancia('${nome}')">
       <div class="inst-dot ${conn?'on':'off'}"></div>
@@ -266,8 +291,8 @@ async function selecionarInstancia(nome) {
   instSel = nome
   convSel = null
   renderInstancias()
-  const inst   = instancias.find(i => (i.instance?.instanceName||i.instanceName) === nome)
-  const status = inst?.instance?.status || inst?.status || 'close'
+  const inst   = instancias.find(i => i.instanceName === nome)
+  const status = inst?.status || 'close'
   if (status !== 'open') {
     mostrarQR(nome)
   } else {
