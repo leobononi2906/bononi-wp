@@ -183,7 +183,7 @@ async function fazerLogin() {
   if (error) { err.textContent = 'E-mail ou senha incorretos'; return }
 
   const meta = data.user.user_metadata || {}
-  if (!meta.admin && !(meta.modulos||[]).includes('whatsapp')) {
+  if (!meta.admin && !(meta.modulos||[]).includes('wp')) {
     err.textContent = 'Sem acesso a este módulo. Fale com o administrador.'
     await sb.auth.signOut()
     return
@@ -204,7 +204,7 @@ document.getElementById('login-senha').addEventListener('keydown', e => {
   const { data: { session: s } } = await sb.auth.getSession()
   if (s) {
     const meta = s.user.user_metadata || {}
-    if (meta.admin || (meta.modulos||[]).includes('whatsapp')) {
+    if (meta.admin || (meta.modulos||[]).includes('wp')) {
       session = s
       document.getElementById('login-screen').style.display = 'none'
       document.getElementById('user-name').textContent = meta.nome || s.user.email
