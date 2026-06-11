@@ -316,17 +316,36 @@ async function gerarQR(nome) {
   if (btn) { btn.textContent = 'Gerando...'; btn.disabled = true }
   try {
     const data = await evoGet(`/instance/connect/${nome}`)
-    const qr   = data?.base64 || data?.qrcode?.base64
+    console.log('connect response:', JSON.stringify(data))
+
+    // Evolution API v2 pode retornar em vários formatos
+    const qr = data?.base64 || data?.qrcode?.base64 || data?.qr?.base64 || data?.code
+
+    // Se já está conectado
+    if (data?.instance?.status === 'open' || data?.status === 'open' ||
+        data?.state === 'open' || data?.connectionStatus === 'open') {
+      document.getElementById('chat-panel').innerHTML = `<div class="qr-panel"><div class="qr-box">
+        <h3>✅ Já conectado</h3>
+        <p>Esta instância já está conectada ao WhatsApp.</p>
+        <button class="btn-connect" onclick="selecionarInstancia('${nome}')">Ver conversas</button>
+      </div></div>`
+      // Atualizar status na lista
+      const inst = instancias.find(i => i.instanceName === nome)
+      if (inst) inst.status = 'open'
+      renderInstancias()
+      return
+    }
+
     document.getElementById('chat-panel').innerHTML = qr
       ? `<div class="qr-panel"><div class="qr-box">
           <h3>📱 Escaneie o QR Code</h3>
           <p>WhatsApp → Configurações → Aparelhos conectados → Conectar aparelho</p>
-          <div class="qr-img"><img src="${qr}" style="width:200px;height:200px;border-radius:6px"></div>
+          <div class="qr-img"><img src="${qr.startsWith('data:') ? qr : 'data:image/png;base64,'+qr}" style="width:200px;height:200px;border-radius:6px;object-fit:contain"></div>
           <button class="btn-connect" onclick="gerarQR('${nome}')">↻ Novo QR Code</button>
          </div></div>`
       : `<div class="qr-panel"><div class="qr-box">
-          <h3>⚠️ Erro ao gerar QR</h3>
-          <p>Tente novamente.</p>
+          <h3>⚠️ Resposta inesperada</h3>
+          <p style="font-size:11px;word-break:break-all;color:var(--text-sec)">${JSON.stringify(data).slice(0,200)}</p>
           <button class="btn-connect" onclick="gerarQR('${nome}')">Tentar novamente</button>
          </div></div>`
   } catch(e) {
